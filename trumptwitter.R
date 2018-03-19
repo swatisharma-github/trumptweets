@@ -10,14 +10,24 @@ library(tidyverse) #tidyverse conflicts with RCurl so wait to load
 library(lubridate)
 
 # removing retweets
-twitterData <- twitterData %>% subset(is_retweet=="False") %>% select(-is_retweet, -source, -in_reply_to_screen_name) %>%
+twitterData <- twitterData %>% 
+  subset(is_retweet=="False") %>%                                                # removing retweets
+  select(-is_retweet, -source, -in_reply_to_screen_name) %>%                     # removing extra columns
   separate(created_at, c("Date", "Year"), "\\+0000", remove=TRUE) %>%
   separate(Date, c("Day", "Month", "Date", "Time"), " ", remove=TRUE) %>% 
-  unite("Date", c("Date", "Month", "Year", "Time"), sep = " ", remove=TRUE) %>%
-  mutate(Date = dmy_hms(Date)) %>% 
-  arrange(Date) 
+  unite("Date", c("Date", "Month", "Year", "Time"), sep = " ", remove=TRUE) %>% 
+  mutate(Date = dmy_hms(Date)) %>%                                               # creating dates
+  arrange(Date)                                                                  # order by oldest to newest date
 
-postElection <- twitterData %>% 
+beforeRunning <- twitterData %>%                                                 # creating dataset for pre-campaign tweets
+  filter(Date < "2015-06-16 00:00:00") %>%
+  mutate(id = row_number())
+
+whileRunning <- twitterData %>%                                                  # creating dataset for tweets during campaign
+  filter(Date >= "2015-06-16 00:00:00" & Date < "2017-01-20 09:00:00") %>%
+  mutate(id = row_number())
+
+postElection <- twitterData %>%                                                  # creating dataset for post-election tweets
   filter(Date >= "2017-01-20 09:00:00") %>%
   mutate(id = row_number())
 
