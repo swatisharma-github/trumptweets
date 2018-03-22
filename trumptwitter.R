@@ -1,5 +1,33 @@
+
+pkgs <-c('twitteR','ROAuth','httr','plyr','stringr','ggplot2','plotly','downloader', 'jsonlite')
+for(p in pkgs) if(p %in% rownames(installed.packages()) == FALSE) {install.packages(p)}
+for(p in pkgs) suppressPackageStartupMessages(library(p, quietly=TRUE, character.only=TRUE))
+
 library(foreign)
 library(RCurl)
+
+
+url = ("https://github.com/bpb27/trump_tweet_data_archive/blob/master/master_2018.json.zip?raw=true")
+download(url, dest="../data/master_2018.json.zip") 
+unzip("../data/master_2018.json.zip", exdir = "../data")
+list.files("../data")
+
+url = ("https://nces.ed.gov/ccd/Data/zip/ccd_sch_029_1617_w_0e_050317_sas.zip")
+download(url, dest="../data/ccd_1617_sas.zip") 
+unzip("../data/ccd_1617_sas.zip", exdir = "../data")
+list.files("../data")
+ccd1617 <- read_sas("../data/ccd_1617.sas7bdat")
+
+
+json <- fromJSON(getURL('https://github.com/bpb27/trump_tweet_data_archive/blob/master/master_2018.json.zip'))
+
+twitterData <- fromJSON("../data/master_2018.json")
+twitterData <- as.data.frame(twitterData)
+
+twitterDataRecent <- stream_in(file(""))
+
+twitterData2018 <- stream_in(file("../data/master_2018.json"))
+twitterData2018 <- flatten(twitterData2018)
 
 # importing dataset
 # source: https://github.com/bpb27
@@ -8,6 +36,9 @@ twitterData <- read.csv("https://raw.githubusercontent.com/bpb27/political_twitt
 
 library(tidyverse) #tidyverse conflicts with RCurl so wait to load
 library(lubridate)
+
+twitterData2 <- twitter1flat %>% 
+  select(favorite_count, full_text, retweet_count, user.id_str, user.created_at)
 
 # removing retweets
 twitterData <- twitterData %>% 
