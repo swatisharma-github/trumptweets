@@ -31,33 +31,49 @@ postElection <- twitterData %>%                                                 
   filter(Date >= "2017-01-20 09:00:00") %>%
   mutate(id = row_number())
 
-
-
 # aggression level in response to other tweets?
 
-# generating wordclouds
+###### generating wordclouds
 
 library(tm)           # text mining
-library(SnowballC)    # text stemming
 library(wordcloud)    # word-cloud generator
 
-
-
-tweetsDuring <- Corpus(VectorSource(whileRunning$text))
-
-tweetsAfter <- Corpus(VectorSource(postElection$text))
+# generating wordcloud for tweets before official candidacy announcement
 
 tweetsBefore <- Corpus(VectorSource(beforeRunning$text))
-
-#tweetsBefore <- tm_map(tweetsBefore, PlainTextDocument)
 tweetsBefore <- tm_map(tweetsBefore, removePunctuation)
 tweetsBefore <- tm_map(tweetsBefore, removeWords, stopwords('english'))
 tweetsBefore <- tm_map(tweetsBefore, removeWords, c("the"))
-tweetsBefore <- tm_map(tweetsBefore, stemDocument)
-
 dtm <- TermDocumentMatrix(tweetsBefore)
 m <- as.matrix(dtm)
 v <- sort(rowSums(m),decreasing=TRUE)
 d <- data.frame(word = names(v),freq=v)
 
-wordcloud(words = d$word, freq = d$freq, max.words=100, random.order = FALSE)
+wordcloud(words = d$word, freq = d$freq, max.words=100, random.order = FALSE, colors=brewer.pal(8, "Dark2"))
+
+# generating wordcloud for time while he was running
+
+tweetsDuring <- Corpus(VectorSource(whileRunning$text))
+tweetsDuring <- tm_map(tweetsDuring, removePunctuation)
+tweetsDuring <- tm_map(tweetsDuring, removeWords, stopwords('english'))
+tweetsDuring <- tm_map(tweetsDuring, removeWords, c("the"))
+dtm <- TermDocumentMatrix(tweetsDuring)
+m <- as.matrix(dtm)
+v <- sort(rowSums(m),decreasing=TRUE)
+d <- data.frame(word = names(v),freq=v)
+
+wordcloud(words = d$word, freq = d$freq, max.words=100, random.order = FALSE, colors=brewer.pal(8, "Dark2"))
+
+# generating wordcloud for time after he was elected 
+
+tweetsAfter <- Corpus(VectorSource(postElection$text))
+tweetsAfter <- tm_map(tweetsAfter, removePunctuation)
+tweetsAfter <- tm_map(tweetsAfter, removeWords, stopwords('english'))
+tweetsAfter <- tm_map(tweetsAfter, removeWords, c("the"))
+dtm <- TermDocumentMatrix(tweetsAfter)
+m <- as.matrix(dtm)
+v <- sort(rowSums(m),decreasing=TRUE)
+d <- data.frame(word = names(v),freq=v)
+
+wordcloud(words = d$word, freq = d$freq, max.words=100, random.order = FALSE, colors=brewer.pal(8, "Dark2"))
+
