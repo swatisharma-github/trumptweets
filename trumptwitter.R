@@ -35,3 +35,29 @@ postElection <- twitterData %>%                                                 
 
 # aggression level in response to other tweets?
 
+# generating wordclouds
+
+library(tm)           # text mining
+library(SnowballC)    # text stemming
+library(wordcloud)    # word-cloud generator
+
+
+
+tweetsDuring <- Corpus(VectorSource(whileRunning$text))
+
+tweetsAfter <- Corpus(VectorSource(postElection$text))
+
+tweetsBefore <- Corpus(VectorSource(beforeRunning$text))
+
+#tweetsBefore <- tm_map(tweetsBefore, PlainTextDocument)
+tweetsBefore <- tm_map(tweetsBefore, removePunctuation)
+tweetsBefore <- tm_map(tweetsBefore, removeWords, stopwords('english'))
+tweetsBefore <- tm_map(tweetsBefore, removeWords, c("the"))
+tweetsBefore <- tm_map(tweetsBefore, stemDocument)
+
+dtm <- TermDocumentMatrix(tweetsBefore)
+m <- as.matrix(dtm)
+v <- sort(rowSums(m),decreasing=TRUE)
+d <- data.frame(word = names(v),freq=v)
+
+wordcloud(words = d$word, freq = d$freq, max.words=100, random.order = FALSE)
