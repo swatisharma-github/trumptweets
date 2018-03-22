@@ -12,19 +12,13 @@ download(url, dest="../data/master_2018.json.zip")
 unzip("../data/master_2018.json.zip", exdir = "../data")
 list.files("../data")
 
-url = ("https://nces.ed.gov/ccd/Data/zip/ccd_sch_029_1617_w_0e_050317_sas.zip")
-download(url, dest="../data/ccd_1617_sas.zip") 
-unzip("../data/ccd_1617_sas.zip", exdir = "../data")
+url = ("https://github.com/bpb27/trump_tweet_data_archive/blob/master/condensed_2018.json.zip?raw=true")
+download(url, dest="../data/condensed_2018.json.zip") 
+unzip("../data/condensed_2018.json.zip", exdir = "../data")
 list.files("../data")
-ccd1617 <- read_sas("../data/ccd_1617.sas7bdat")
 
-
-json <- fromJSON(getURL('https://github.com/bpb27/trump_tweet_data_archive/blob/master/master_2018.json.zip'))
-
-twitterData <- fromJSON("../data/master_2018.json")
-twitterData <- as.data.frame(twitterData)
-
-twitterDataRecent <- stream_in(file(""))
+twitterDataRecent <- stream_in(file("../data/condensed_2018.json"))
+twitterDataRecent <- flatten(twitterDataRecent)
 
 twitterData2018 <- stream_in(file("../data/master_2018.json"))
 twitterData2018 <- flatten(twitterData2018)
@@ -37,13 +31,29 @@ twitterData <- read.csv("https://raw.githubusercontent.com/bpb27/political_twitt
 library(tidyverse) #tidyverse conflicts with RCurl so wait to load
 library(lubridate)
 
-twitterData2 <- twitter1flat %>% 
-  select(favorite_count, full_text, retweet_count, user.id_str, user.created_at)
+twitterData2018 <- twitterData2018 %>% 
+  select(favorite_count, full_text, created_at,retweet_count) %>% 
+  filter(!is.na(full_text)) %>%
+  separate(created_at, c("Date", "Year"), "\\+0000", remove=TRUE) %>%
+  separate(Date, c("Day", "Month", "Date", "Time"), " ", remove=TRUE) %>% 
+  unite("Date", c("Date", "Month", "Year", "Time"), sep = " ", remove=TRUE) %>% 
+  mutate(Date = dmy_hms(Date)) %>%                                               # creating dates
+  arrange(Date) %>%
+  rename(text = full_text)
+
+twitterDataRecent <- twitterDataRecent %>%
+  select(favorite_count, text, created_at, retweet_count) %>%
+  filter(!is.na(text)) %>%
+  separate(created_at, c("Date", "Year"), "\\+0000", remove=TRUE) %>%
+  separate(Date, c("Day", "Month", "Date", "Time"), " ", remove=TRUE) %>% 
+  unite("Date", c("Date", "Month", "Year", "Time"), sep = " ", remove=TRUE) %>% 
+  mutate(Date = dmy_hms(Date)) %>%                                               # creating dates
+  arrange(Date) 
 
 # removing retweets
 twitterData <- twitterData %>% 
   subset(is_retweet=="False") %>%                                                # removing retweets
-  select(-is_retweet, -source, -in_reply_to_screen_name) %>%                     # removing extra columns
+  select(-is_retweet, -source, -in_reply_to_screen_name, -id_str) %>%                     # removing extra columns
   separate(created_at, c("Date", "Year"), "\\+0000", remove=TRUE) %>%
   separate(Date, c("Day", "Month", "Date", "Time"), " ", remove=TRUE) %>% 
   unite("Date", c("Date", "Month", "Year", "Time"), sep = " ", remove=TRUE) %>% 
