@@ -1,0 +1,154 @@
+---
+title: "Final Project"
+author: "Swati Sharma"
+date: "3/22/2018"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup}
+packages <-c('foreign','tidyverse','lubridate', 'tm', 'wordcloud', 'downloader', 'jsonlite')
+for(i in packages) if(i %in% rownames(installed.packages()) == FALSE) {install.packages(i)}
+for(i in packages) suppressPackageStartupMessages(library(i, quietly=TRUE, character.only=TRUE))
+```
+
+### Reading in datasets
+
+```{r, message=FALSE,warning=FALSE}
+# importing dataset
+# source: https://github.com/bpb27
+# thanks to Brendan Brown for the data
+
+url = ("https://github.com/bpb27/trump_tweet_data_archive/blob/master/master_2018.json.zip?raw=true")
+download(url, dest="../data/master_2018.json.zip") 
+unzip("../data/master_2018.json.zip", exdir = "../data")
+
+twitterData2018 <- stream_in(file("../data/master_2018.json"))
+twitterData2018 <- flatten(twitterData2018)
+
+url = ("https://github.com/bpb27/trump_tweet_data_archive/blob/master/condensed_2018.json.zip?raw=true")
+download(url, dest="../data/condensed_2018.json.zip") 
+unzip("../data/condensed_2018.json.zip", exdir = "../data")
+
+twitterDataRecent <- stream_in(file("../data/condensed_2018.json"))
+twitterDataRecent <- flatten(twitterDataRecent)
+
+twitterData <- read.csv("https://raw.githubusercontent.com/bpb27/political_twitter_archive/master/realdonaldtrump/realdonaldtrump.csv")
+```
+One of the reasons why I thought the data might be interesting is because the president's tweets are relatively unfiltered compared what he might say during a speech or other platforms. I was wondering if there would be a huge difference in the types of things he tweeted before he started running for office and after. A wordcloud is a nice way of visualizing things that he is particularly interested in talking about. I thought there was a possibility that he'd appear to be less politically interested and talk more about his businesseson twitter before running for office. However, it looks like he's liked to talk quite a lot about President Obama throughout the entire span of time he's been using twitter. 
+
+My biggest challenge with importing the data was unzipping and reading in json files. Initially, I had copy-pasted another url into my code and it would not unzip at all. When I tried manually, it would turn into a cpgz file and then back into a zip file if I tried again. I then learned that I needed the link to the "raw" data and that worked better. Working with the json file was also kind of difficult - I couldn't view the datasets in r until I "flattened" them. This basically assigns each variable into its own column.
+
+I still haven't ironed out all the issues with reading in the json files. It seems like there is an incomplete line in the middle of the two files so they stop reading there. This is why the master file only had tweets that date back to 2017; there should actually be tweets from 2009 (when he first opened his twitter account) onwards. This is why I merged the twitterData dataset - its a contains tweets from 2009 to the beginning of 2017. twitterDataRecent only has tweets from the last two months, and twitterData2018 contains tweets from September of 2017 to January of 2018.
+
+I think I'd like to try scraping the data off his twitter myself but that requires a twitter account and I didn't think it would be full replicable if I tried to do it here. An advantage though, of using Brendan's data is that he has all of President Trump's tweets - even if they were deleted off of his account. 
+
+### Cleaning data
+
+```{r, message=FALSE,warning=FALSE}
+twitterData2018 <- twitterData2018 %>% 
+  select(favorite_count, full_text, created_at, retweet_count) %>%                         # removing extra columns
+  filter(!is.na(full_text)) %>%                                                            # removing rows without tweets
+  separate(created_at, c("Date", "Year"), "\\+0000", remove=TRUE) %>%                      # splitting up strings before and after +0000
+  separate(Date, c("Day", "Month", "Date", "Time"), " ", remove=TRUE) %>%                  # splitting up strings by day, month, date, time
+  unite("Date", c("Date", "Month", "Year", "Time"), sep = " ", remove=TRUE) %>%            # combine into one date column
+  mutate(Date = dmy_hms(Date)) %>%                                                         # creating date object
+  arrange(Date) %>%                                                                        # arrange by earliest date
+  rename(text = full_text)                                                                 # renaming column to make sure it'll match 
+                                                                                           # other datasets
+
+twitterDataRecent <- twitterDataRecent %>%
+  select(favorite_count, text, created_at, retweet_count) %>%                             # removing extra columns
+  filter(!is.na(text)) %>%                                                                # removing rows without tweets
+  separate(created_at, c("Date", "Year"), "\\+0000", remove=TRUE) %>%
+  separate(Date, c("Day", "Month", "Date", "Time"), " ", remove=TRUE) %>% 
+  unite("Date", c("Date", "Month", "Year", "Time"), sep = " ", remove=TRUE) %>% 
+  mutate(Date = dmy_hms(Date)) %>%                                                        # creating dateo bject
+  arrange(Date) 
+
+# removing retweets
+twitterData <- twitterData %>%                                                           
+  select(-is_retweet, -source, -in_reply_to_screen_name, -id_str) %>%                     # removing extra columns
+  separate(created_at, c("Date", "Year"), "\\+0000", remove=TRUE) %>%
+  separate(Date, c("Day", "Month", "Date", "Time"), " ", remove=TRUE) %>% 
+  unite("Date", c("Date", "Month", "Year", "Time"), sep = " ", remove=TRUE) %>% 
+  mutate(Date = dmy_hms(Date)) %>%                                                        # creating date object
+  arrange(Date)  
+
+```
+
+One of the challenges in tidying this data was making sure that all columns were following the same naming conventions and making sure the columns contained the same values. The original twitterData2018 contained 100+ columns so readability was difficult. It was also time consuming to convert the original times to actual date objects. I found that splitting up each element into a different column and merging them made the process easier. 
+
+### Merging cleaned dataset and splitting up by election periods
+
+```{r, message=FALSE,warning=FALSE}
+twitterData <- rbind(twitterData, twitterData2018, twitterDataRecent)            # append twitterData with other two datasets
+twitterData <- twitterData %>% dplyr::distinct(Date, .keep_all = TRUE)           # remove duplicated dates
+
+rm(url, twitterData2018, twitterDataRecent)
+
+beforeRunning <- twitterData %>%                                                 # creating dataset for pre-campaign tweets
+  filter(Date < "2015-06-16 00:00:00") %>%                                       # only keep rows from given time period
+  mutate(id = row_number())                                                      # adding a column with a tweet id (just in case I need it later)
+
+whileRunning <- twitterData %>%                                                  # creating dataset for tweets during campaign
+  filter(Date >= "2015-06-16 00:00:00" & Date < "2017-01-20 09:00:00") %>%
+  mutate(id = row_number())
+
+postElection <- twitterData %>%                                                  # creating dataset for post-election tweets
+  filter(Date >= "2017-01-20 09:00:00") %>%
+  mutate(id = row_number())
+```
+
+### Generating wordclouds
+
+#### generating wordcloud for tweets before official candidacy announcement
+```{r, message=FALSE,warning=FALSE}
+tweetsBefore <- Corpus(VectorSource(beforeRunning$text))                   # creating Corpus(list of input texts)
+tweetsBefore <- tm_map(tweetsBefore, removePunctuation)                    # removing punctuation
+tweetsBefore <- tm_map(tweetsBefore, tolower)                              # making all words lowercase 
+tweetsBefore <- tm_map(tweetsBefore, removeWords, stopwords('english'))    # removing english stopwords
+
+# credit for code to build frequency table:
+# http://www.sthda.com/english/wiki/text-mining-and-word-cloud-fundamentals-in-r-5-simple-steps-you-should-know
+
+dtm <- TermDocumentMatrix(tweetsBefore)                                    # making table containing words and frequencies
+m <- as.matrix(dtm)                                                        # converting to matrix
+v <- sort(rowSums(m),decreasing=TRUE)                                      # sort by descending frequency
+d <- data.frame(word = names(v),freq=v)                                    # convert to data frame
+
+wordcloud(words = d$word, freq = d$freq, scale = c(3,.7), max.words=100, random.order = FALSE, colors=brewer.pal(8, "Dark2"))
+```
+
+#### generating wordcloud for time while he was running
+
+```{r, message=FALSE,warning=FALSE}
+tweetsDuring <- Corpus(VectorSource(whileRunning$text))                   # creating Corpus(list of input texts)
+tweetsDuring <- tm_map(tweetsDuring, removePunctuation)                   # removing punctuation
+tweetsDuring <- tm_map(tweetsDuring, tolower)                             # making all words lowercase
+tweetsDuring <- tm_map(tweetsDuring, removeWords, stopwords('english'))   # removing english stopwords
+
+dtm <- TermDocumentMatrix(tweetsDuring)                                   # making table containing words and frequencies
+m <- as.matrix(dtm)                                                       # converting to matrix
+v <- sort(rowSums(m),decreasing=TRUE)                                     # sort by descending frequency
+d <- data.frame(word = names(v),freq=v)                                   # convert to data frame
+
+wordcloud(words = d$word, freq = d$freq, scale = c(3,.7), max.words=100, random.order = FALSE, colors=brewer.pal(8, "Dark2"))
+```
+
+#### generating wordcloud for time after he was elected 
+
+```{r, message=FALSE,warning=FALSE}
+tweetsAfter <- Corpus(VectorSource(postElection$text))                   # creating Corpus(list of input texts)
+tweetsAfter <- tm_map(tweetsAfter, removePunctuation)                    # removing punctuation
+tweetsAfter <- tm_map(tweetsAfter, tolower)                              # making all words lowercase
+tweetsAfter <- tm_map(tweetsAfter, removeWords, stopwords('english'))    # removing english stopwords
+
+dtm <- TermDocumentMatrix(tweetsAfter)                                   # making table containing words and frequencies
+m <- as.matrix(dtm)                                                      # converting to matrix
+v <- sort(rowSums(m),decreasing=TRUE)                                    # sort by descending frequency
+d <- data.frame(word = names(v),freq=v)                                  # convert to data frame
+
+wordcloud(words = d$word, freq = d$freq, scale = c(3,.7), max.words=100, random.order = FALSE, colors=brewer.pal(8, "Dark2"))
+```
